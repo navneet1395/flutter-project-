@@ -1,0 +1,81 @@
+Flutter is Google's UI toolkit for building beautiful, natively compiled applications for mobile, web, and desktop from a single codebase.
+
+Dart Functions Framework is used for the backend service running on Cloud Run. The general architecture is shown in the following diagram.
+
+Enable the Cloud Run Service
+-----gcloud services enable run.googleapis.com
+
+Git clone the function framework repository
+
+git clone https://github.com/subfuzion/dart-flutter-fullstack-demo.git && cd dart-flutter-fullstack-demo/backend
+Copied!
+Create a configuration named cloudbuild.yaml:
+
+nano cloudbuild.yaml
+Copied!
+Paste this into your cloudbuild.yaml file:
+
+steps:
+- name: gcr.io/cloud-builders/docker
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/backend-service', '.']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/backend-service']
+Copied!
+Exit and save the file by pressing control + x, y, and then enter in that sequence.
+
+Build the image
+
+gcloud builds submit --config cloudbuild.yaml
+Copied!
+Deploy Cloud Run service using the new image backend
+
+gcloud run deploy backend-service \
+   --image gcr.io/$GOOGLE_CLOUD_PROJECT/backend-service \
+   --platform managed \
+   --region us-central1 \
+   --allow-unauthenticated \
+   --max-instances=2
+Copied!
+Get the backend endpoint of the deployed service
+
+backend_service=$(gcloud run services list --platform managed --format='value(URL)' --filter='backend-service')
+Copied!
+Test the backend service
+
+curl -X POST -H "content-type: application/json" \
+   -d '{ "name": "World" }' -i -w "\n" $backend_service
+   
+   We now have a backend service to interact with Google Cloud. However as we are using multiple hosts, we need a proxy to add the correct cors headers.
+
+Note: CROSS-ORIGIN RESOURCE SHARING (CORS)
+
+Expectation that scripts are sourced from the same ORIGIN
+Notice in the above response message, the x-frame-options: SAMEORIGIN
+
+In the next section, learn how to create a proxy to test across origins.
+
+Create a Proxy Service
+The proxy service can be run either locally or remotely (e.g. Cloud Run). The revised architecture is shown in the following diagram.
+
+64c7ea74fa0363c3.png
+
+In this example, introduce a new Cloud Run service. The proxy service will be used to update the header associated with HTTP response.
+
+Deploy a backend-Proxy as a Cloud Run service and set the ENDPOINT as the backend-service
+
+gcloud run deploy backend-proxy \
+   --image gcr.io/qwiklabs-resources/backend-proxy \
+   --platform managed \
+   --region us-central1 \
+   --allow-unauthenticated \
+   --set-env-vars "ENDPOINT=$backend_service" \
+   --max-instances=2
+Copied!
+Get the backend endpoint of the deployed service
+
+backend_proxy=$(gcloud run services list --platform managed --format='value(URL)' --filter='backend-proxy')
+Copied!
+Test the backend service
+
+curl -X POST -H "content-type: application/json" \
+   -d '{ "name": "World" }' -i -w "\n" $backend_proxy
